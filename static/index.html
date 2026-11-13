@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DataBridge — Dataset Inspector</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      color: #172b3a;
+      background: #f2f5f7;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      background: #112b3b;
+      color: white;
+      padding: 32px max(24px, calc((100vw - 1120px) / 2));
+    }
+    header p { color: #b7ced9; margin-bottom: 0; }
+    h1 { margin: 8px 0; font-size: 32px; letter-spacing: -1px; }
+    h2 { margin: 0 0 18px; font-size: 19px; }
+    .eyebrow {
+      color: #80e0cc;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+    main { max-width: 1168px; margin: auto; padding: 24px; }
+    fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .card {
+      background: white;
+      border: 1px solid #dce4e9;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    select, input, button {
+      font: inherit;
+      border-radius: 7px;
+      padding: 10px 12px;
+      min-height: 44px;
+    }
+    select, input {
+      width: 100%;
+      border: 1px solid #b8c8d2;
+      background: white;
+      color: #172b3a;
+    }
+    button {
+      border: 0;
+      background: #116b5b;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary { background: #e8eff3; color: #244354; }
+    button:disabled, fieldset:disabled button { opacity: .55; cursor: wait; }
+    :focus-visible { outline: 3px solid #288bd2; outline-offset: 3px; }
+    .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 160px; }
+    .muted { color: #617683; font-size: 14px; line-height: 1.6; }
+    .status {
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      background: #e5f3ee;
+      border-radius: 8px;
+      overflow-wrap: anywhere;
+    }
+    .status.error { background: #fce8e5; color: #8b2921; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .metric { background: #f2f6f8; border-radius: 8px; padding: 16px; }
+    .metric strong { display: block; font-size: 28px; margin-top: 5px; }
+    .table-wrap { overflow: auto; max-height: 440px; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid #e4ebef;
+      padding: 12px;
+      vertical-align: top;
+      min-width: 110px;
+      max-width: 320px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    th { background: #edf3f6; position: sticky; top: 0; }
+    .missing { color: #7a6b5a; font-style: italic; }
+    .identifier { overflow-wrap: anywhere; }
+    a { color: #116b5b; }
+    [hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; gap: 0; }
+      .card { padding: 18px; }
+      main { padding: 16px; }
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">DATABRIDGE MCP</div>
+    <h1>Know your dataset.</h1>
+    <p>Inspect CSV structure, missing values, and column distributions.</p>
+  </header>
+
+  <main>
+    <p id="status" class="status" role="status" aria-live="polite">
+      Loading datasets…
+    </p>
+
+    <fieldset id="workspace">
+      <div class="grid">
+        <section class="card">
+          <h2>Upload a CSV</h2>
+          <form id="uploadForm">
+            <label for="file">Choose a dataset</label>
+            <input id="file" type="file" accept=".csv,text/csv" required>
+            <p class="muted">
+              UTF-8 · 5 MiB maximum · 10,000 rows · 100 columns.
+              Empty fields count as missing.
+            </p>
+            <button type="submit">Upload and inspect</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Stored datasets</h2>
+          <label for="dataset">Select a dataset</label>
+          <select id="dataset">
+            <option value="">No datasets loaded</option>
+          </select>
+          <p class="muted">Showing up to 100 datasets, newest first.</p>
+          <button id="refresh" type="button" class="secondary">Refresh list</button>
+        </section>
+      </div>
+
+      <div id="inspection" hidden>
+        <section class="card">
+          <h2 id="datasetTitle">Dataset profile</h2>
+          <p id="datasetId" class="muted identifier"></p>
+          <div id="metrics" class="metrics"></div>
+          <div id="profileTable" class="table-wrap"></div>
+        </section>
+
+        <section class="card">
+          <h2>Row preview</h2>
+          <p id="previewNote" class="muted"></p>
+          <div id="previewTable" class="table-wrap"></div>
+        </section>
+
+        <section class="card">
+          <h2>Explore a column</h2>
+          <form id="summaryForm">
+            <fieldset id="summaryControls" disabled>
+              <div class="row">
+                <div>
+                  <label for="column">Column</label>
+                  <select id="column" required></select>
+                </div>
+                <div>
+                  <label for="mode">Analysis</label>
+                  <select id="mode">
+                    <option value="numeric">Numeric statistics</option>
+                    <option value="categorical">Category frequencies</option>
+                  </select>
+                </div>
+                <div id="topKControl" hidden>
+                  <label for="topK">Top categories</label>
+                  <input id="topK" type="number" min="1" max="20" value="5">
+                </div>
+                <button type="submit">Summarize</button>
+              </div>
+            </fieldset>
+          </form>
+          <p class="muted">
+            Choose category frequencies for labels or numeric category codes.
+          </p>
+          <div id="summaryResult"></div>
+        </section>
+      </div>
+    </fieldset>
+
+    <p class="muted">
+      Local inspection demo · <a href="/docs">API documentation</a>
+    </p>
+  </main>
+
+  <script>
+    "use strict";
+
+    const $ = id => document.getElementById(id);
+    let activeId = "";
+    let datasets = [];
+
+    function showStatus(message, error = false) {
+      $("status").textContent = message;
+      $("status").classList.toggle("error", error);
+    }
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(30000)
+      });
+      const body = await response.json();
+
+      if (!response.ok) {
+        const detail = body.detail;
+        const message = Array.isArray(detail)
+          ? detail.map(item => item.msg).join("; ")
+          : typeof detail === "string" ? detail : `Request failed (${response.status}).`;
+        throw new Error(message);
+      }
+      return body;
+    }
+
+    async function run(task) {
+      $("workspace").disabled = true;
+      try {
+        await task();
+      } catch (error) {
+        const message = error.name === "TimeoutError"
+          ? "The request timed out. Refresh the dataset list before retrying an upload."
+          : error.message;
+        showStatus(message, true);
+      } finally {
+        $("workspace").disabled = false;
+        $("summaryControls").disabled = !activeId;
+      }
+    }
+
+    function formatNumber(value) {
+      return value === null
+        ? "Not available"
+        : new Intl.NumberFormat(undefined, {
+            maximumSignificantDigits: 6
+          }).format(value);
+    }
+
+    function table(target, headers, rows) {
+      const element = document.createElement("table");
+      const head = element.createTHead().insertRow();
+      for (const title of headers) {
+        const th = document.createElement("th");
+        th.scope = "col";
+        th.textContent = title;
+        head.append(th);
+      }
+      const body = element.createTBody();
+      for (const values of rows) {
+        const row = body.insertRow();
+        for (const value of values) {
+          const cell = row.insertCell();
+          cell.textContent = value === null ? "— (missing)" : String(value);
+          if (value === null) cell.className = "missing";
+        }
+      }
+      target.replaceChildren(element);
+    }
+
+    function note(target, message) {
+      const paragraph = document.createElement("p");
+      paragraph.className = "muted";
+      paragraph.textContent = message;
+      target.append(paragraph);
+    }
+
+    function clearInspection() {
+      activeId = "";
+      $("inspection").hidden = true;
+      $("summaryResult").replaceChildren();
+      $("column").replaceChildren();
+    }
+
+    async function inspect(id) {
+      clearInspection();
+      if (!id) {
+        showStatus("No datasets yet. Upload a CSV to begin.");
+        return;
+      }
+
+      showStatus("Loading profile and preview…");
+      const [profile, preview] = await Promise.all([
+        request(`/datasets/${encodeURIComponent(id)}/profile`),
+        request(`/datasets/${encodeURIComponent(id)}/preview?limit=10`)
+      ]);
+
+      activeId = id;
+      const selected = datasets.find(item => item.dataset_id === id);
+      $("datasetTitle").textContent = selected?.filename || "Dataset profile";
+      $("datasetId").textContent = `Dataset ID: ${id}`;
+
+      $("metrics").replaceChildren();
+      for (const [label, value] of [
+        ["Rows", profile.row_count],
+        ["Columns", profile.column_count],
+        ["Duplicate rows", profile.duplicate_row_count]
+      ]) {
+        const box = document.createElement("div");
+        box.className = "metric";
+        const caption = document.createElement("span");
+        caption.textContent = label;
+        const number = document.createElement("strong");
+        number.textContent = formatNumber(value);
+        box.append(caption, number);
+        $("metrics").append(box);
+      }
+
+      table($("profileTable"), ["Column", "Type", "Missing", "Missing %"],
+        profile.columns.map(column => [
+          column.name,
+          column.dtype,
+          column.missing_count,
+          `${column.missing_percent.toFixed(2)}%`
+        ]));
+
+      table($("previewTable"), preview.columns, preview.rows);
+      $("previewNote").textContent =
+        `Showing ${preview.returned_rows} of ${preview.total_rows} rows. ` +
+        `${preview.truncated_cells} displayed cells shortened. ` +
+        "Values are display text; missing values are marked explicitly.";
+
+      for (const column of profile.columns) {
+        $("column").add(new Option(column.name, column.name));
+      }
+
+      $("inspection").hidden = false;
+      showStatus("Dataset ready to inspect.");
+    }
+
+    async function refresh(preferredId = "") {
+      showStatus("Loading datasets…");
+      clearInspection();
+      datasets = await request("/datasets?limit=100");
+      $("dataset").replaceChildren();
+
+      if (!datasets.length) {
+        $("dataset").add(new Option("No datasets available", ""));
+        await inspect("");
+        return;
+      }
+
+      for (const item of datasets) {
+        const label = `${item.filename} · ${item.row_count} rows · ${item.dataset_id.slice(0, 8)}`;
+        $("dataset").add(new Option(label, item.dataset_id));
+      }
+      const selected = datasets.some(item => item.dataset_id === preferredId)
+        ? preferredId : datasets[0].dataset_id;
+      $("dataset").value = selected;
+      await inspect(selected);
+    }
+
+    $("uploadForm").addEventListener("submit", event => {
+      event.preventDefault();
+      run(async () => {
+        const file = $("file").files[0];
+        if (!file) throw new Error("Choose a CSV file.");
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error("CSV exceeds the 5 MiB size limit.");
+        }
+
+        const form = new FormData();
+        form.append("file", file);
+        showStatus("Uploading and validating…");
+        const uploaded = await request("/datasets", {
+          method: "POST",
+          body: form
+        });
+        $("uploadForm").reset();
+
+        try {
+          await refresh(uploaded.dataset_id);
+        } catch (error) {
+          throw new Error(
+            `Upload succeeded, but inspection failed: ${error.message} ` +
+            "Refresh the list instead of uploading again."
+          );
+        }
+      });
+    });
+
+    $("dataset").addEventListener("change", () => {
+      run(() => inspect($("dataset").value));
+    });
+
+    $("refresh").addEventListener("click", () => {
+      const preferredId = $("dataset").value;
+      run(() => refresh(preferredId));
+    });
+
+    $("mode").addEventListener("change", () => {
+      $("topKControl").hidden = $("mode").value !== "categorical";
+      $("summaryResult").replaceChildren();
+    });
+
+    $("column").addEventListener("change", () => {
+      $("summaryResult").replaceChildren();
+    });
+
+    $("summaryForm").addEventListener("submit", event => {
+      event.preventDefault();
+      run(async () => {
+        if (!activeId) throw new Error("Select a dataset first.");
+        $("summaryResult").replaceChildren();
+        showStatus("Calculating column summary…");
+
+        const params = new URLSearchParams({
+          column: $("column").value,
+          mode: $("mode").value
+        });
+        if ($("mode").value === "categorical") {
+          params.set("top_k", $("topK").value);
+        }
+
+        const result = await request(
+          `/datasets/${encodeURIComponent(activeId)}/summary?${params}`
+        );
+        const summary = result.summary;
+        const target = $("summaryResult");
+
+        if (result.mode === "numeric") {
+          table(target, ["Statistic", "Value"], [
+            ["Finite values used", summary.finite_count],
+            ["Missing values", summary.missing_count],
+            ["Infinite values excluded", summary.infinite_count],
+            ["Minimum", formatNumber(summary.minimum)],
+            ["Maximum", formatNumber(summary.maximum)],
+            ["Mean", formatNumber(summary.mean)],
+            ["Median", formatNumber(summary.median)]
+          ]);
+          note(target, "Statistics use finite values only. Display values are rounded.");
+        } else {
+          table(target, ["Category", "Count", "% of nonmissing"],
+            summary.top_values.map(item => [
+              item.value + (item.label_truncated ? " [shortened]" : ""),
+              item.count,
+              `${item.percent_of_nonmissing.toFixed(2)}%`
+            ]));
+          note(target,
+            `${summary.unique_count} unique values; ${summary.missing_count} missing. ` +
+            `${summary.omitted_category_count} categories omitted, representing ` +
+            `${summary.other_count} rows. Percentages exclude missing values.`
+          );
+        }
+        showStatus("Column summary ready.");
+      });
+    });
+
+    run(() => refresh());
+  </script>
+</body>
+</html>
