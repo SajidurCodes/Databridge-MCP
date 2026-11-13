@@ -7,6 +7,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
+from databridge.preview import DatasetPreview, preview_dataframe
 from databridge.profiling import DatasetProfile, profile_dataframe
 from databridge.storage import (
     DatasetInfo,
@@ -18,6 +19,14 @@ from databridge.storage import (
 DATABASE_PATH = (
     Path(__file__).resolve().parent / "data" / "datasets.sqlite3"
 )
+
+DatasetId = Annotated[
+    str,
+    Field(
+        pattern=r"^[0-9a-f]{32}$",
+        description="Dataset ID returned by list_datasets.",
+    ),
+]
 
 mcp = MCPServer("DataBridge MCP")
 
@@ -63,15 +72,7 @@ def list_datasets(
 
 
 @mcp.tool()
-def profile_dataset(
-    dataset_id: Annotated[
-        str,
-        Field(
-            pattern=r"^[0-9a-f]{32}$",
-            description="Dataset ID returned by list_datasets.",
-        ),
-    ],
-) -> DatasetProfile:
+def profile_dataset(dataset_id: DatasetId) -> DatasetProfile:
     """Report row counts, column types, missing values, and duplicate rows."""
     try:
         frame = get_store().load_dataframe(dataset_id)
@@ -81,6 +82,29 @@ def profile_dataset(
         ) from exc
 
     return profile_dataframe(frame)
+
+
+@mcp.tool()
+def preview_dataset(
+    dataset_id: DatasetId,
+    limit: Annotated[
+        int,
+        Field(ge=1, le=50, description="Maximum preview rows to return."),
+    ] = 5,
+) -> DatasetPreview:
+    """Preview the first rows as display text, with null for missing values.
+
+    Cells are limited to 200 characters. Truncation is reported.
+    This previews parsed data and is not a lossless CSV export.
+    """
+    try:
+        frame = get_store().load_dataframe(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise ToolError(
+            "Dataset was not found. Use list_datasets to find available IDs."
+        ) from exc
+
+    return preview_dataframe(frame, limit=limit)
 
 
 if __name__ == "__main__":
