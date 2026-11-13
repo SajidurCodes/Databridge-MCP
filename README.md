@@ -6,6 +6,14 @@ DataBridge validates uploaded CSV files, stores them locally, and provides datas
 
 This is a local portfolio project. It does not require an LLM, API key, or paid service.
 
+## 
+
+![DataBridge screenshot 1](./s1.png)
+
+![DataBridge screenshot 2](./s2.png)
+
+![DataBridge screenshot 3](./s3.png)
+
 ## Features
 
 - CSV uploads with encoding, size, shape, and header validation
