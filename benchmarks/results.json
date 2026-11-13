@@ -1,0 +1,105 @@
+{
+  "measured_at_utc": "2026-11-13T14:25:13.515797+00:00",
+  "python": "3.11.3",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "machine": "AMD64",
+  "processor": "AMD64 Family 23 Model 24 Stepping 1, AuthenticAMD",
+  "packages": {
+    "pandas": "3.1.1",
+    "numpy": "2.4.6",
+    "pydantic": "2.14.3"
+  },
+  "repeats": 7,
+  "warmup_runs_per_operation": 1,
+  "timing_unit": "milliseconds",
+  "scope": "Single-process, in-memory synthetic CSV benchmark. Excludes disk storage, HTTP, MCP, and browser rendering.",
+  "cases": [
+    {
+      "rows": 100,
+      "columns": 4,
+      "csv_bytes": 2131,
+      "duplicate_rows": 9,
+      "missing_cells": 25,
+      "baseline_matches": true,
+      "pandas_profile": {
+        "median_ms": 1.193500000226777,
+        "min_ms": 1.1558000005607028,
+        "max_ms": 1.2448000015865546
+      },
+      "row_loop_profile": {
+        "median_ms": 0.846500000989181,
+        "min_ms": 0.8260000013251556,
+        "max_ms": 0.8980000002338784
+      },
+      "csv_load": {
+        "median_ms": 1.6333000003214693,
+        "min_ms": 1.0853999992832541,
+        "max_ms": 2.3211999996419763
+      },
+      "load_and_profile": {
+        "median_ms": 2.1708000003854977,
+        "min_ms": 1.9995000002381857,
+        "max_ms": 2.887900000132504
+      },
+      "baseline_over_pandas_ratio": 0.7092584841460724
+    },
+    {
+      "rows": 1000,
+      "columns": 4,
+      "csv_bytes": 21139,
+      "duplicate_rows": 99,
+      "missing_cells": 234,
+      "baseline_matches": true,
+      "pandas_profile": {
+        "median_ms": 1.4382000008481555,
+        "min_ms": 1.3782999994873535,
+        "max_ms": 2.4212999996962026
+      },
+      "row_loop_profile": {
+        "median_ms": 4.751200000100653,
+        "min_ms": 4.028299999845331,
+        "max_ms": 7.77379999999539
+      },
+      "csv_load": {
+        "median_ms": 1.752100000885548,
+        "min_ms": 1.7156000012619188,
+        "max_ms": 1.9037000001844717
+      },
+      "load_and_profile": {
+        "median_ms": 3.4434000008332077,
+        "min_ms": 3.0602000006183516,
+        "max_ms": 4.4814000011683675
+      },
+      "baseline_over_pandas_ratio": 3.3035739099559924
+    },
+    {
+      "rows": 10000,
+      "columns": 4,
+      "csv_bytes": 211201,
+      "duplicate_rows": 1687,
+      "missing_cells": 2340,
+      "baseline_matches": true,
+      "pandas_profile": {
+        "median_ms": 4.039699999339064,
+        "min_ms": 3.2910999998421175,
+        "max_ms": 4.673400000683614
+      },
+      "row_loop_profile": {
+        "median_ms": 40.69580000032147,
+        "min_ms": 36.79460000057588,
+        "max_ms": 48.80510000111826
+      },
+      "csv_load": {
+        "median_ms": 12.99250000010943,
+        "min_ms": 9.66830000106711,
+        "max_ms": 15.05890000044019
+      },
+      "load_and_profile": {
+        "median_ms": 15.087100000528153,
+        "min_ms": 14.517000001433189,
+        "max_ms": 23.087200001100427
+      },
+      "baseline_over_pandas_ratio": 10.073965890283862
+    }
+  ]
+}
