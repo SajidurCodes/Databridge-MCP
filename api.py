@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
+import pandas as pd
 from fastapi import (
     FastAPI,
     File,
@@ -12,6 +13,7 @@ from fastapi import (
     UploadFile,
 )
 
+from databridge.column_summary import ColumnSummaryError
 from databridge.csv_loader import MAX_BYTES
 from databridge.preview import DatasetPreview, preview_dataframe
 from databridge.profiling import DatasetProfile, profile_dataframe
@@ -19,6 +21,11 @@ from databridge.storage import (
     DatasetInfo,
     DatasetNotFoundError,
     DatasetStore,
+)
+from databridge.summaries import (
+    ColumnSummaryResult,
+    SummaryMode,
+    summarize_column_dataframe,
 )
 
 
@@ -45,6 +52,16 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         version="0.1.0",
         description="Local CSV validation and inspection.",
     )
+
+    def load_http_dataframe(dataset_id: str) -> pd.DataFrame:
+        """Translate a missing dataset into an HTTP response."""
+        try:
+            return store.load_dataframe(dataset_id)
+        except DatasetNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Dataset was not found.",
+            ) from exc
 
     @app.post(
         "/datasets",
@@ -90,15 +107,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     )
     def get_dataset_profile(dataset_id: DatasetId) -> DatasetProfile:
         """Profile one stored dataset."""
-        try:
-            frame = store.load_dataframe(dataset_id)
-        except DatasetNotFoundError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail="Dataset was not found.",
-            ) from exc
-
-        return profile_dataframe(frame)
+        return profile_dataframe(load_http_dataframe(dataset_id))
 
     @app.get(
         "/datasets/{dataset_id}/preview",
@@ -116,14 +125,37 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         Cells are limited to 200 characters. Truncation is reported.
         This is not a lossless CSV export.
         """
-        try:
-            frame = store.load_dataframe(dataset_id)
-        except DatasetNotFoundError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail="Dataset was not found.",
-            ) from exc
+        return preview_dataframe(
+            load_http_dataframe(dataset_id),
+            limit=limit,
+        )
 
-        return preview_dataframe(frame, limit=limit)
+    @app.get(
+        "/datasets/{dataset_id}/summary",
+        response_model=ColumnSummaryResult,
+    )
+    def get_column_summary(
+        dataset_id: DatasetId,
+        column: Annotated[
+            str,
+            Query(min_length=1, description="Exact column name."),
+        ],
+        mode: SummaryMode,
+        top_k: Annotated[
+            int,
+            Query(
+                ge=1,
+                le=20,
+                description="Maximum categories; ignored in numeric mode.",
+            ),
+        ] = 5,
+    ) -> ColumnSummaryResult:
+        """Summarize a column using numeric or categorical analysis."""
+        frame = load_http_dataframe(dataset_id)
+
+        try:
+            return summarize_column_dataframe(frame, column, mode, top_k)
+        except ColumnSummaryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return app
